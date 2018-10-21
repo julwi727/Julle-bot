@@ -104,4 +104,10 @@ venv.bak/
 .mypy_cache/
 
 #token file
-.tf
+*.tf
+
+#workspace
+*.code-workspace
+
+#batch
+*.bat

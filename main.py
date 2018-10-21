@@ -17,12 +17,22 @@ players = {}
 queues = {}
 
 def check_queue(id):
+    print('check_queue(id)')
     if queues[id] != []:
-        queues[id].pop(0)
+        print('currently %d songs in the queue ' % len(queues[id]))
         queue_list = queues[id]
-        player = queue_list[0]
-        players[id] = player
-        player.start()
+        print('stopping song: ' + queue_list[0].url)
+        queue_list[0].stop()
+        queue_list.pop(0)
+        print('currently %d songs in the queue ' % len(queues[id]))
+        if len(queue_list) > 0:
+            player = queue_list[0]
+            players[id] = player
+            player.start()
+            client.say('Now playing: ' + player.url)
+        else:
+            client.say('No more songs in queue.')
+    
 
 @client.command(pass_context = True)
 async def join(ctx):
@@ -55,7 +65,7 @@ async def help(ctx):
     embed.add_field(name = '!tjena', value = 'Hälsa på Julle', inline = False)
     embed.add_field(name = '!say', value = 'Säg någonting till Julle\nTips: ställ en fråga med ett avslutande \'?\'', inline = False)
     embed.add_field(name = '!play [youtube url]', value = 'Spela upp ljud från youtube', inline = False)
-    embed.add_field(name = '!stop', value = 'Stoppa låt', inline = False)
+    embed.add_field(name = '!clear', value = 'Rensa låtkön', inline = False)
     embed.add_field(name = '!pause', value = 'Pausa låt', inline = False)
     embed.add_field(name = '!resume', value = 'Återuppta uppspelning av låt', inline = False)
     embed.add_field(name = '!skip', value = 'Spela nästa låt i kön', inline = False)
@@ -64,7 +74,7 @@ async def help(ctx):
 
 @client.command(pass_context = True)
 async def say(ctx):
-    msg = '{0.author.mention}: '.format(ctx.message)
+    msg = '{0.author.mention} '.format(ctx.message)
     msg += responder.process_message(ctx.message.content)
     await client.say(msg)
 
@@ -74,6 +84,7 @@ async def on_ready():
 
 @client.command(pass_context = True)
 async def play(ctx, url):
+    print('play(ctx, url)')
     global in_voice
     if not in_voice:
         channel = ctx.message.author.voice.voice_channel
@@ -93,54 +104,68 @@ async def play(ctx, url):
         queues[server.id].append(player)
     else:
         queues[server.id] = [player]
-
     
+    print('currently %d songs in the queue ' % len(queues[server.id]))
     if len(queues[server.id]) == 1:
-        player.start()
         players[server.id] = player
+
+        player.start()
         await client.say('Playing ' + song_url)
     else:
-        await client.say(song_url + ' was added to the queue.\n%d songs are currently in the queue' % len(queues[server.id]))
+        await client.say(song_url + ' was added to the queue.\nThere are currently %d songs in the queue' % len(queues[server.id]))
 
 @client.command(pass_context = True)
 async def clear(ctx):
+    print('clear(ctx)')
     server = ctx.message.server
     for player in queues[server.id]:
         player.stop()
 
-    queues[server.id].clear()
-
-    await client.say('There are currently %d songs in the queue.' % len(queues[server.id]))
-
-@client.command(pass_context = True)
-async def stop(ctx):    
-    server = ctx.message.server
-    players[server.id].stop()
-    queues[server.id].pop(0)
-
-    await client.say('Player stopped. There are still %d songs in the queue.' % len(queues[server.id]))
+    if(len(queues[server.id]) > 0):
+        queues[server.id].clear()
+        players[server.id] = None
+        await client.say('There are currently %d songs in the queue.' % len(queues[server.id]))
+    else:
+        await client.say('There are no songs in the queue.')
 
 @client.command(pass_context = True)
-async def skip(ctx):    
+async def skip(ctx):
+    print('skip(ctx)')
     server = ctx.message.server
+    print('currently %d songs in the queue ' % len(queues[server.id]))
     players[server.id].stop()
-    check_queue(server.id)
-
-    await client.say('Skipping song. There are %d songs left in the queue.' % len(queues[server.id]))
+    print('currently %d songs in the queue ' % len(queues[server.id]))
+    
+    if(len(queues[server.id]) > 0): 
+        await client.say('Skipping song.')
+        await client.say('Now playing: ' + players[server.id].url)
+    else:
+        await client.say('There are no songs in the queue.')
+    
 
 @client.command(pass_context = True)
 async def pause(ctx):    
+    print('pause(ctx)')
     server = ctx.message.server
     players[server.id].pause()
 
-    await client.say('Pausing song.')
+    if(len(queues[server.id]) > 0): 
+        await client.say('Pausing song.')
+    else:
+        await client.say('No song is playing.')
 
 @client.command(pass_context = True)
 async def resume(ctx):    
+    print('resume(ctx)')
     server = ctx.message.server
 
     players[server.id].resume()
-    await client.say('Resuming song.')
+    
+    if(len(queues[server.id]) > 0): 
+        await client.say('Resuming song.')
+    else:
+        await client.say('No song is paused.')
+
 
 client.run(TOKEN)
 
