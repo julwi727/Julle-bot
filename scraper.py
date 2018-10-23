@@ -1,7 +1,5 @@
 import requests
 from bs4 import BeautifulSoup
-import pafy
-import isodate
 import token_reader as token
 import urllib.request
 import json
