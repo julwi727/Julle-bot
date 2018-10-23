@@ -30,9 +30,6 @@ def get_good_food():
 def get_bad_food():
     return random.choice(bad_foods)
 
-def get_despacito():
-    return "https://www.youtube.com/watch?v=kJQP7kiw5Fk"
-
 def process_message(msg):
     if '?' in msg:
         if 'vilket' in msg and 'spel' in msg:
@@ -48,7 +45,7 @@ def process_message(msg):
 
         elif 'datum' in msg or 'dag' in msg:
             now = datetime.datetime.now()
-            response = now.strftime("%Y-%m-%d %H:%M")  
+            response = "Dagens datum är " + now.strftime("%Y-%m-%d")  
             return response
 
         elif 'vecka' in msg:
