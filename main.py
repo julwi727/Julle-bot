@@ -3,6 +3,7 @@ import youtube_dl
 
 import responder
 import token_reader as token
+import scraper
 
 from discord.ext import commands
 
@@ -15,6 +16,7 @@ in_voice = False
 
 players = {}
 queues = {}
+searches = {}
 
 def check_queue(id):
     print('check_queue(id)')
@@ -29,9 +31,9 @@ def check_queue(id):
             player = queue_list[0]
             players[id] = player
             player.start()
-            client.say('Now playing: ' + player.url)
+            client.say('Nu spelas: ' + player.url)
         else:
-            client.say('No more songs in queue.')
+            client.say('Inga låtar i kön.')
     
 
 @client.command(pass_context = True)
@@ -84,7 +86,7 @@ async def on_ready():
 
 @client.command(pass_context = True)
 async def play(ctx, url):
-    print('play(ctx, url)')
+    print(str(ctx.message.author) + ' wants to play song ' + url)
     global in_voice
     if not in_voice:
         channel = ctx.message.author.voice.voice_channel
@@ -94,9 +96,20 @@ async def play(ctx, url):
     server = ctx.message.server
     voice_client = client.voice_client_in(server)
     song_url = url
+    search_choice = -1
 
-    if url == 'despacito':
-        song_url = responder.get_despacito()
+    if len(url) == 1 and server.id in searches: #This is a search result
+        try:
+            search_choice = int(url)
+        except ValueError:
+            await client.say("Låtnummer måste vara en siffra.")
+            return
+
+        if 1 <= search_choice <= 5:
+            song_url = searches[server.id][search_choice - 1]
+            searches[server.id] = [] #successfully found a yt-url, reset search results
+        else:
+            await client.say("Låtnummer måste vara mellan 1-5.")
 
     player = await voice_client.create_ytdl_player(song_url, after=lambda: check_queue(server.id))
 
@@ -110,13 +123,13 @@ async def play(ctx, url):
         players[server.id] = player
 
         player.start()
-        await client.say('Playing ' + song_url)
+        await client.say('Spelar låt ' + song_url)
     else:
-        await client.say(song_url + ' was added to the queue.\nThere are currently %d songs in the queue' % len(queues[server.id]))
+        await client.say(song_url + ' tillagd i kön.\nJust nu är det %d låtar i kön.' % len(queues[server.id]))
 
 @client.command(pass_context = True)
 async def clear(ctx):
-    print('clear(ctx)')
+    print(str(ctx.message.author) + ' cleared queue')
     server = ctx.message.server
     for player in queues[server.id]:
         player.stop()
@@ -124,48 +137,71 @@ async def clear(ctx):
     if(len(queues[server.id]) > 0):
         queues[server.id].clear()
         players[server.id] = None
-        await client.say('There are currently %d songs in the queue.' % len(queues[server.id]))
+        await client.say('Just nu är det %d låtar i kön.' % len(queues[server.id]))
     else:
-        await client.say('There are no songs in the queue.')
+        await client.say('Kön är tom.')
 
 @client.command(pass_context = True)
 async def skip(ctx):
-    print('skip(ctx)')
+    print(str(ctx.message.author) + ' skipped song')
     server = ctx.message.server
     print('currently %d songs in the queue ' % len(queues[server.id]))
     players[server.id].stop()
     print('currently %d songs in the queue ' % len(queues[server.id]))
     
     if(len(queues[server.id]) > 0): 
-        await client.say('Skipping song.')
-        await client.say('Now playing: ' + players[server.id].url)
+        await client.say('Byter till nästa låt.')
+        await client.say('Nu spelas: ' + players[server.id].url)
     else:
-        await client.say('There are no songs in the queue.')
+        await client.say('Kön är tom.')
     
 
 @client.command(pass_context = True)
 async def pause(ctx):    
-    print('pause(ctx)')
+    print(str(ctx.message.author) + ' paused song')
     server = ctx.message.server
     players[server.id].pause()
 
     if(len(queues[server.id]) > 0): 
-        await client.say('Pausing song.')
+        await client.say('Pausar låt.')
     else:
-        await client.say('No song is playing.')
+        await client.say('Ingen låt spelas.')
 
 @client.command(pass_context = True)
 async def resume(ctx):    
-    print('resume(ctx)')
+    print(str(ctx.message.author) + ' resumed song')
     server = ctx.message.server
 
     players[server.id].resume()
     
     if(len(queues[server.id]) > 0): 
-        await client.say('Resuming song.')
+        await client.say('Återupptar uppspelning av låt.')
     else:
-        await client.say('No song is paused.')
+        await client.say('Ingen låt är pausad.')
 
+@client.command(pass_context = True)
+async def search(ctx):
+    server = ctx.message.server
+
+    search = "+".join(ctx.message.content.split(" ")[1:])
+    print(str(ctx.message.author) + ' searched for ' + search)
+
+    results_tuple = scraper.scrape_yt(search)
+    searches[server.id] = results_tuple[0]
+
+    author = ctx.message.channel
+
+    embed = discord.Embed(
+        colour = discord.Colour.red()
+    )
+
+    embed.set_author(name = 'Sökresultat')
+    embed.add_field(name = "1. " + results_tuple[1][0], value = results_tuple[0][0] + " (" + results_tuple[2][0] + ")", inline = True)
+    embed.add_field(name = "2. " + results_tuple[1][1], value = results_tuple[0][1] + " (" + results_tuple[2][1] + ")", inline = True)
+    embed.add_field(name = "3. " + results_tuple[1][2], value = results_tuple[0][2] + " (" + results_tuple[2][2] + ")", inline = True)
+    embed.add_field(name = "4. " + results_tuple[1][3], value = results_tuple[0][3] + " (" + results_tuple[2][3] + ")", inline = True)
+    embed.add_field(name = "5. " + results_tuple[1][4], value = results_tuple[0][4] + " (" + results_tuple[2][4] + ")", inline = True)
+    
+    await client.send_message(author, embed=embed)
 
 client.run(TOKEN)
-
