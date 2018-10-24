@@ -2,7 +2,6 @@
 import discord
 from discord.ext import commands
 import token_reader as token
-import scraper
 
 from music import Music
 from responder import Chat
